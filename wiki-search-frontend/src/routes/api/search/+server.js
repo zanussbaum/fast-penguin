@@ -66,9 +66,13 @@ async function fetchOgImage(url) {
 /** @type {import('./$types').RequestHandler} */
 export async function POST({ request }) {
     let query;
+    let mode = 'fulltext'; // Default to full-text search
     try {
         const requestData = await request.json();
         query = requestData.query;
+        if (requestData.mode === 'phrase') { // Check for 'phrase' mode
+            mode = 'phrase';
+        }
     } catch (e) {
         return json({ error: 'Invalid JSON body' }, { status: 400 });
     }
@@ -90,18 +94,33 @@ export async function POST({ request }) {
     const tpuf = new Turbopuffer({ apiKey: TPUF_API_KEY });
 
     try {
-        console.log(`Performing Turbopuffer search for query: "${query}" using client library`);
+        console.log(`Performing Turbopuffer search for query: "${query}" (mode: ${mode}) using client library`);
         
         // Get the specific namespace object from the client
         const ns = tpuf.namespace(NAMESPACE);
 
-        // Use the namespace object's query method according to FTS docs
-        const queryResult = await ns.query({
-            // Use rank_by array: [attribute, method, query]
-            rank_by: ['title', 'BM25', query],
-            top_k: 20, // Use top_k instead of limit for rank_by
+        // Construct query options based on mode
+        let queryOptions = {
+            top_k: 20,
             include_attributes: ['title', 'url']
-        });
+        };
+
+        if (mode === 'phrase') {
+            // Use ContainsAllTokens filter for phrase mode as per docs
+            queryOptions.filters = ['title', 'ContainsAllTokens', query]; 
+            // Remove rank_by when using filters
+            delete queryOptions.rank_by; 
+            console.log('[DEBUG] Using ContainsAllTokens filter:', JSON.stringify(queryOptions.filters));
+        } else {
+            // Default to full-text search (BM25)
+            queryOptions.rank_by = ['title', 'BM25', query];
+            // Ensure filters is not set for full-text search if previously set
+            delete queryOptions.filters;
+            console.log('[DEBUG] Using BM25 rank_by:', JSON.stringify(queryOptions.rank_by));
+        }
+
+        // Use the namespace object's query method with dynamic options
+        const queryResult = await ns.query(queryOptions);
 
         // --- TEMPORARY DEBUG LOG: Log full query result --- 
         console.log('[DEBUG] Full queryResult:', JSON.stringify(queryResult, null, 2));

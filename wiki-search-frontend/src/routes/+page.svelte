@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 
 	let searchTerm = '';
+	let searchMode = 'fulltext'; // 'fulltext' or 'phrase'
 	let results = [];
 	let isLoading = false;
 	let error = null;
@@ -24,7 +25,7 @@
 				headers: {
 					'Content-Type': 'application/json'
 				},
-				body: JSON.stringify({ query: searchTerm })
+				body: JSON.stringify({ query: searchTerm, mode: searchMode }) // Pass searchMode
 			});
 
 			// Check response status first
@@ -61,6 +62,15 @@
 		}
 	}
 
+	// Function to toggle search mode
+	function toggleSearchMode() {
+		searchMode = searchMode === 'fulltext' ? 'phrase' : 'fulltext';
+		// Optionally re-fetch results when mode changes if there's a search term
+		if (searchTerm.trim()) {
+			fetchResults();
+		}
+	}
+
 	// Debounce the search input
 	function handleInput() {
 		clearTimeout(debounceTimer);
@@ -85,13 +95,22 @@
 <div class="container">
 	<h1>Wikipedia Title Search</h1>
 
-	<input
-		type="text"
-		bind:value={searchTerm}
-		on:input={handleInput}
-		placeholder="Search by title..."
-		aria-label="Search Wikipedia Titles"
-	/>
+	<div class="search-wrapper">
+		<input
+			type="text"
+			bind:value={searchTerm}
+			on:input={handleInput}
+			placeholder="Search by title..."
+			aria-label="Search Wikipedia Titles"
+		/>
+		<button on:click={toggleSearchMode} title="Toggle search mode (Currently: {searchMode})">
+			{#if searchMode === 'fulltext'}
+				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg> 
+			{:else} 
+				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 11V6.5a3.5 3.5 0 0 1 7 0V11M14 11v10H4V11a4 4 0 1 1 8 0z"></path></svg> 
+			{/if}
+		</button>
+	</div>
 
 	{#if isLoading}
 		<p class="status">Loading...</p>
@@ -131,15 +150,47 @@
 		margin-bottom: 1.5rem;
 	}
 
-	input[type="text"] {
-		display: block;
-		width: 100%;
-		padding: 0.8rem;
-		font-size: 1.1rem;
+	.search-wrapper {
+		display: flex;
+		align-items: center;
 		margin-bottom: 1.5rem;
 		border: 1px solid #ccc;
 		border-radius: 4px;
-        box-sizing: border-box; /* Include padding in width */
+	}
+
+	input[type="text"] {
+		display: block;
+		/* width: 100%; */
+		flex-grow: 1; /* Allow input to take available space */
+		padding: 0.8rem;
+		font-size: 1.1rem;
+		/* margin-bottom: 1.5rem; */ 
+		border: none; /* Remove individual border */
+		border-radius: 0; 
+		outline: none; /* Remove focus outline */
+		/* border-radius: 4px; */
+        /* box-sizing: border-box; */
+	}
+
+	.search-wrapper button {
+		background: none;
+		border: none;
+		padding: 0.5rem;
+		margin-right: 0.3rem;
+		cursor: pointer;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		color: #555;
+	}
+
+	.search-wrapper button:hover {
+		color: #000;
+	}
+
+	.search-wrapper button svg {
+		width: 20px; /* Adjust icon size */
+		height: 20px;
 	}
 
 	.status {
