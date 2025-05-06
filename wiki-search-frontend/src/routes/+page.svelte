@@ -2,7 +2,7 @@
 	import { onMount } from 'svelte';
 
 	let searchTerm = '';
-	let searchMode = 'fulltext'; // 'fulltext' or 'semantic'
+	let searchType = 'semantic'; // 'semantic', 'fulltext', or 'phrase'
 	let results = [];
 	let isLoadingEmbedding = false;
 	let isLoadingTurbopuffer = false;
@@ -26,7 +26,7 @@
 		results = []; // Clear previous results
 
 		try {
-			if (searchMode === 'semantic') {
+			if (searchType === 'semantic') {
 				isLoadingEmbedding = true;
 				isLoadingTurbopuffer = false;
 
@@ -73,7 +73,7 @@
 				}
 				results = await searchResponse.json();
 
-			} else { // 'fulltext' search
+			} else if (searchType === 'fulltext') { // 'fulltext' search
 				isLoadingEmbedding = false; // Ensure this is false
 				isLoadingTurbopuffer = true;
 				const response = await fetch('/api/search', {
@@ -105,6 +105,38 @@
 
             // Ensure response is ok before parsing JSON
 				results = await response.json(); 
+			} else if (searchType === 'phrase') { // 'phrase' search
+				isLoadingEmbedding = false; // Ensure this is false
+				isLoadingTurbopuffer = true;
+				const response = await fetch('/api/search', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({ query: searchTerm, mode: 'phrase' }) // mode is 'phrase'
+				});
+
+				// Check response status first
+				if (!response.ok) {
+					let errorMsg = `Phrase search failed! status: ${response.status}`;
+					try {
+                    // Try to get more specific error from backend JSON response
+						const errorData = await response.json();
+						errorMsg = errorData.error || errorMsg;
+					} catch (jsonError) {
+                    // If response is not JSON, try getting text
+						try {
+							const errorText = await response.text();
+							if (errorText) errorMsg += ` - ${errorText}`;
+						} catch (textError) {
+                        // Ignore if text cannot be read
+						}
+					}
+					throw new Error(errorMsg);
+				}
+
+            // Ensure response is ok before parsing JSON
+				results = await response.json(); 
 			}
 		} catch (e) {
 			console.error('Search fetch error:', e); // Log the full error object
@@ -117,15 +149,6 @@
 			isLoadingEmbedding = false;
 			isLoadingTurbopuffer = false;
 			searchPerformedForCurrentTerm = true; // Set flag after search completes
-		}
-	}
-
-	// Function to toggle search mode
-	function toggleSearchMode() {
-		searchMode = searchMode === 'fulltext' ? 'semantic' : 'fulltext';
-		// Optionally re-fetch results when mode changes if there's a search term
-		if (searchTerm.trim()) {
-			fetchResults();
 		}
 	}
 
@@ -174,13 +197,17 @@
 			placeholder="Search by title..."
 			aria-label="Search Wikipedia Titles"
 		/>
-		<button on:click={toggleSearchMode} title="Toggle search mode (Currently: {searchMode})">
-			{#if searchMode === 'fulltext'}
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="8" y1="6" x2="21" y2="6"></line><line x1="8" y1="12" x2="21" y2="12"></line><line x1="8" y1="18" x2="21" y2="18"></line><line x1="3" y1="6" x2="3.01" y2="6"></line><line x1="3" y1="12" x2="3.01" y2="12"></line><line x1="3" y1="18" x2="3.01" y2="18"></line></svg> 
-			{:else} 
-				<svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg> 
-			{/if}
-		</button>
+		<div class="search-options">
+			<label>
+				<input type="radio" bind:group={searchType} value="semantic" /> Semantic
+			</label>
+			<label>
+				<input type="radio" bind:group={searchType} value="fulltext" /> Full-text
+			</label>
+			<label>
+				<input type="radio" bind:group={searchType} value="phrase" /> Phrase
+			</label>
+		</div>
 	</div>
 
 	{#if isLoadingEmbedding}
@@ -227,15 +254,14 @@
 
 	.search-wrapper {
 		display: flex;
+		flex-direction: column;
 		align-items: center;
 		margin-bottom: 1.5rem;
-		border: 1px solid #ccc;
-		border-radius: 4px;
 	}
 
 	input[type="text"] {
 		display: block;
-		flex-grow: 1; /* Allow input to take available space */
+		width: 100%;
 		padding: 0.8rem;
 		font-size: 1.1rem;
 		border: none; /* Remove individual border */
@@ -243,26 +269,31 @@
 		outline: none; /* Remove focus outline */
 	}
 
-	.search-wrapper button {
-		background: none;
-		border: none;
-		padding: 0.5rem;
-		margin-right: 0.3rem;
-		cursor: pointer;
+	.search-options {
 		display: flex;
-		align-items: center;
 		justify-content: center;
-		color: #555;
+		gap: 1rem; /* Adjusted gap for better spacing */
+		margin-bottom: 1.5rem;
+		align-items: center; /* Vertically align items if they wrap */
 	}
 
-	.search-wrapper button:hover {
-		color: #000;
+	.search-options label {
+		cursor: pointer;
+		display: flex; /* Align radio button and text */
+		align-items: center; /* Vertically center radio and text */
+		padding: 0.5rem; /* Add some padding for easier clicking */
+		border-radius: 4px; /* Slightly rounded corners for labels */
+		transition: background-color 0.2s; /* Smooth background transition on hover */
 	}
 
-	.search-wrapper button svg {
-		width: 20px; /* Adjust icon size */
-		height: 20px;
+	.search-options label:hover {
+		background-color: #ecf0f1; /* Light background on hover for better UX */
 	}
+
+   .search-options input[type="radio"] {
+    margin-right: 0.5em; /* Space between radio button and text */
+    cursor: pointer;
+  }
 
 	.status {
 		text-align: center;

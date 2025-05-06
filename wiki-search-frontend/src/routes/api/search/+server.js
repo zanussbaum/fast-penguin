@@ -70,7 +70,7 @@ export async function POST({ request }) {
 
     try {
         const requestData = await request.json();
-        mode = requestData.mode || 'fulltext'; // Default to fulltext if not provided
+        mode = requestData.mode || requestData.search_type || 'fulltext'; // Accept 'search_type' from frontend, default to fulltext
 
         if (mode === 'semantic') {
             vector = requestData.vector;
@@ -84,8 +84,14 @@ export async function POST({ request }) {
             if (typeof query !== 'string' || query.trim() === '') {
                 return json({ error: 'Fulltext search requires a non-empty "query" string.' }, { status: 400 });
             }
+        } else if (mode === 'phrase') { // Added phrase mode handling
+            query = requestData.query;
+            top_k_from_request = requestData.top_k;
+            if (typeof query !== 'string' || query.trim() === '') {
+                return json({ error: 'Phrase search requires a non-empty "query" string.' }, { status: 400 });
+            }
         } else {
-            return json({ error: `Unsupported search mode: ${mode}. Supported modes are "fulltext" and "semantic".` }, { status: 400 });
+            return json({ error: `Unsupported search mode: ${mode}. Supported modes are "fulltext", "semantic", and "phrase".` }, { status: 400 });
         }
     } catch (e) {
         console.error('Error parsing request body:', e);
@@ -110,8 +116,8 @@ export async function POST({ request }) {
 
         // Construct query options based on mode
         let queryOptions = {
-            top_k: top_k_from_request || (mode === 'semantic' ? 20 : 20), // Semantic defaults to 20, Fulltext defaults to 20
-            include_attributes: ['title', 'url']
+            top_k: top_k_from_request || (mode === 'semantic' ? 20 : 20), // Semantic defaults to 20, Fulltext/Phrase defaults to 20
+            include_attributes: ['title', 'url'] // Removed 'text'
         };
 
         if (mode === 'semantic') {
@@ -121,11 +127,18 @@ export async function POST({ request }) {
             delete queryOptions.rank_by;
             delete queryOptions.filters;
             console.log(`[DEBUG] Performing Semantic Search with ${queryOptions.vector.length}-dim vector. Top K: ${queryOptions.top_k}, Namespace: ${NAMESPACE}`);
-        } else { // mode === 'fulltext'
+        } else if (mode === 'fulltext') { // mode === 'fulltext'
             queryOptions.rank_by = ['title', 'BM25', query];
             // Ensure filters is not set for full-text BM25 search
             delete queryOptions.filters;
-            console.log(`[DEBUG] Performing Fulltext Search for query: "${query}". Top K: ${queryOptions.top_k}, Mode: ${mode}, Namespace: ${NAMESPACE}`);
+            delete queryOptions.vector; // Ensure vector is not set
+            console.log(`[DEBUG] Performing Fulltext Search for query: "${query}". Top K: ${queryOptions.top_k}, Namespace: ${NAMESPACE}`);
+        } else { // mode === 'phrase'
+            queryOptions.filters = { "title": ["ContainsAllTokens", query] }; // Changed from "text" to "title"
+            // Ensure rank_by and vector are not set for phrase search
+            delete queryOptions.rank_by;
+            delete queryOptions.vector;
+            console.log(`[DEBUG] Performing Phrase Search for query: "${query}". Top K: ${queryOptions.top_k}, Namespace: ${NAMESPACE}`);
         }
 
         // Use the namespace object's query method with dynamic options
@@ -162,7 +175,8 @@ export async function POST({ request }) {
                     id: result.id,
                     title: attributes.title || 'N/A', // Provide default if missing
                     url: attributes.url || '#',    // Provide default if missing
-                    ogImage: ogImage
+                    ogImage: ogImage,
+                    distance: result.distance // Include distance for semantic search
                 };
             })
         );
@@ -172,6 +186,10 @@ export async function POST({ request }) {
 
     } catch (error) {
         console.error('Error processing search request:', error);
-        return json({ error: 'Internal Server Error' }, { status: 500 });
+        // More detailed error logging
+        if (error.response && error.response.data) {
+            console.error('Turbopuffer API Error:', error.response.data);
+        }
+        return json({ error: 'Internal Server Error', details: error.message }, { status: 500 });
     }
 }
