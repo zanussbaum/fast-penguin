@@ -63,6 +63,32 @@ async function fetchOgImage(url) {
     }
 }
 
+// ===============================================
+// Rank Fusion
+// ===============================================
+function reciprocalRankFusion(resultLists, k = 60) {
+  const scores = {};
+  const allResults = {};
+  for (const results of resultLists) {
+    if (results) { // Add a check for null/undefined results
+      for (let rank = 1; rank <= results.length; rank++) {
+        const item = results[rank - 1];
+        if (item && item.id != null) { // Ensure item and item.id are valid
+          scores[item.id] = (scores[item.id] || 0) + 1.0 / (k + rank);
+          allResults[item.id] = item;
+        }
+      }
+    }
+  }
+  return Object.entries(scores)
+    .sort(([, a], [, b]) => b - a)
+    .map(([docId, score]) => {
+      const resultItem = allResults[docId];
+      resultItem.dist = score; // Add/overwrite dist with RRF score
+      return resultItem;
+    });
+}
+
 /** @type {import('./$types').RequestHandler} */
 export async function POST({ request }) {
     let query, vector, top_k_from_request;
@@ -90,8 +116,18 @@ export async function POST({ request }) {
             if (typeof query !== 'string' || query.trim() === '') {
                 return json({ error: 'Phrase search requires a non-empty "query" string.' }, { status: 400 });
             }
+        } else if (mode === 'hybrid') {
+            query = requestData.query;
+            vector = requestData.vector; // Expect vector from frontend
+            top_k_from_request = requestData.top_k;
+            if (typeof query !== 'string' || query.trim() === '') {
+                return json({ error: 'Hybrid search requires a non-empty "query" string.' }, { status: 400 });
+            }
+            if (!Array.isArray(vector) || !vector.every(n => typeof n === 'number')) {
+                return json({ error: 'Hybrid search requires a valid "vector" (array of numbers).' }, { status: 400 });
+            }
         } else {
-            return json({ error: `Unsupported search mode: ${mode}. Supported modes are "fulltext", "semantic", and "phrase".` }, { status: 400 });
+            return json({ error: `Unsupported search mode: ${mode}. Supported modes are "fulltext", "semantic", "phrase", and "hybrid".` }, { status: 400 });
         }
     } catch (e) {
         console.error('Error parsing request body:', e);
@@ -133,12 +169,46 @@ export async function POST({ request }) {
             delete queryOptions.filters;
             delete queryOptions.vector; // Ensure vector is not set
             console.log(`[DEBUG] Performing Fulltext Search for query: "${query}". Top K: ${queryOptions.top_k}, Namespace: ${NAMESPACE}`);
-        } else { // mode === 'phrase'
+        } else if (mode === 'phrase') { // mode === 'phrase'
             queryOptions.filters = { "title": ["ContainsAllTokens", query] }; // Changed from "text" to "title"
             // Ensure rank_by and vector are not set for phrase search
             delete queryOptions.rank_by;
             delete queryOptions.vector;
             console.log(`[DEBUG] Performing Phrase Search for query: "${query}". Top K: ${queryOptions.top_k}, Namespace: ${NAMESPACE}`);
+        } else if (mode === 'hybrid') {
+            // Use the 'query' for FTS and the 'vector' from requestData for vector search
+            const ftsPromise = ns.query({
+                rank_by: ['title', 'BM25', query],
+                include_attributes: ['title', 'url'],
+                top_k: top_k_from_request
+            });
+
+            // The vector is already available as 'vector' from requestData
+            const vectorPromise = ns.query({
+                vector: vector, // Use the vector from requestData
+                include_attributes: ['title', 'url'],
+                top_k: top_k_from_request
+            });
+
+            const [ftsResult, vectorResult] = await Promise.all([ftsPromise, vectorPromise]);
+            
+            const fusedResults = reciprocalRankFusion([ftsResult, vectorResult], 60);
+            const finalHybridResults = fusedResults.slice(0, top_k_from_request); // Use top_k_from_request
+            const resultsWithImages = await Promise.all(
+                finalHybridResults.map(async (result) => {
+                    // Defensive check for attributes
+                    const attributes = result.attributes || {};
+                    const ogImage = await fetchOgImage(attributes.url);
+                    return {
+                        id: result.id,
+                        title: attributes.title || 'N/A', // Provide default if missing
+                        url: attributes.url || '#',    // Provide default if missing
+                        ogImage: ogImage,
+                        distance: result.distance // Include distance for semantic search
+                    };
+                })
+            );
+            return json(resultsWithImages, { status: 200 }); 
         }
 
         // Use the namespace object's query method with dynamic options

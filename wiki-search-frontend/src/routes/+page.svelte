@@ -138,6 +138,64 @@
 
             // Ensure response is ok before parsing JSON
 				results = await response.json(); 
+			} else if (searchType === 'hybrid') { // 'hybrid' search
+				isLoadingEmbedding = true; // Hybrid search includes semantic, so embedding is needed
+				isLoadingTurbopuffer = false; // Will be true after embedding is fetched
+
+				if (!EMBEDDING_API_URL) {
+					throw new Error('Embedding API URL is not configured.');
+				}
+
+				// Fetch embedding from Python backend
+				const embedResponse = await fetch(EMBEDDING_API_URL, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ text: searchTerm })
+				});
+
+				if (!embedResponse.ok) {
+					const errorData = await embedResponse.json().catch(() => ({ detail: 'Failed to get embedding details' }));
+					throw new Error(`Embedding failed: ${errorData.detail || embedResponse.statusText}`);
+				}
+				const embeddingResult = await embedResponse.json();
+				const queryVector = embeddingResult.embedding;
+
+				if (!queryVector) {
+					throw new Error('Failed to retrieve embedding vector for hybrid search.');
+				}
+				isLoadingEmbedding = false;
+				isLoadingTurbopuffer = true; // Now ready for Turbopuffer via backend
+
+				// Call SvelteKit backend with query, vector, and search_type 'hybrid'
+				const response = await fetch('/api/search', {
+					method: 'POST',
+					headers: {
+						'Content-Type': 'application/json'
+					},
+					body: JSON.stringify({ query: searchTerm, vector: queryVector, search_type: 'hybrid', top_k: 20 })
+				});
+
+				// Check response status first
+				if (!response.ok) {
+					let errorMsg = `Hybrid search failed! status: ${response.status}`;
+					try {
+                    // Try to get more specific error from backend JSON response
+						const errorData = await response.json();
+						errorMsg = errorData.error || errorMsg;
+					} catch (jsonError) {
+                    // If response is not JSON, try getting text
+						try {
+							const errorText = await response.text();
+							if (errorText) errorMsg += ` - ${errorText}`;
+						} catch (textError) {
+                        // Ignore if text cannot be read
+						}
+					}
+					throw new Error(errorMsg);
+				}
+
+            // Ensure response is ok before parsing JSON
+				results = await response.json(); 
 			}
 		} catch (e) {
 			console.error('Search fetch error:', e); // Log the full error object
@@ -233,6 +291,11 @@
 				<input type="radio" bind:group={searchType} value="phrase" />
 				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
 				Phrase
+			</label>
+			<label class:selected={searchType === 'hybrid'}>
+				<input type="radio" bind:group={searchType} value="hybrid" />
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9 9l-7 2.5L9 14l3 7 3-7 7-2.5L15 9z"/><path d="M22 12l-3-1.5L16 12l3 1.5L22 12zM10 22l-1.5-3L7 16l1.5 3L10 22z"/></svg>
+				Hybrid
 			</label>
 		</div>
 	</div>
