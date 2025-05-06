@@ -34,4 +34,4 @@ Open `http://localhost:5173` in your browser.
 
 Most of this code, especially the frontend, is vibe-coded with Windsurf. I wanted to see what svelte is like but not sure if it's setup in the correct way!
 
-You can upload vectors to Turbopuffer using the `upload_to_turbopuffer.py` script. I used the English Wikipedia vectors from [Nomic Embed v2](https://huggingface.co/datasets/nomic-ai/nomic-embed-v2-wikivecs). I uploaded the first 5M or so.
+You can upload vectors to Turbopuffer using the `upload_to_turbopuffer.py` script. I used the English Wikipedia vectors from [Nomic Embed v2](https://huggingface.co/datasets/nomic-ai/nomic-embed-v2-wikivecs). I uploaded the first 5M or so but you can use any vectors you want. Make sure to swap out the `MODEL_NAME` in `server.py` if you do so. 
