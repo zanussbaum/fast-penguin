@@ -327,7 +327,6 @@
 						</div>
 						<div class="content">
 							<h2>{result.title}</h2>
-							<p class="url-link">{result.url}</p>
 						</div>
 					</a>
 				</li>
@@ -567,18 +566,6 @@
 		font-weight: 600;
 		margin: 0 0 0.5rem 0;
 		line-height: 1.4;
-	}
-
-	.result-item .url-link {
-		font-size: 0.85rem;
-		color: var(--color-accent);
-		word-break: break-all;
-		margin-top: auto;
-		text-decoration: none;
-	}
-
-	.result-item .url-link:hover {
-		text-decoration: underline;
 	}
 
 </style>
