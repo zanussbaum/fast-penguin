@@ -196,28 +196,43 @@
 <svelte:head>
 	<title>Wiki Search</title>
 	<meta name="description" content="Search Wikipedia titles via Turbopuffer" />
+	<link rel="preconnect" href="https://fonts.googleapis.com">
+	<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+	<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
 </svelte:head>
 
-<div class="container">
-	<h1>Wikipedia Title Search</h1>
+<div class="page-wrapper">
+	<header class="header">
+		<h1>WikiExplorer</h1>
+		<p class="subtitle">Discover articles with power and precision</p>
+	</header>
 
-	<div class="search-wrapper">
-		<input
-			type="text"
-			bind:value={searchTerm}
-			on:input={handleInput}
-			placeholder="Search by title..."
-			aria-label="Search Wikipedia Titles"
-		/>
+	<div class="search-container">
+		<div class="search-input-wrapper">
+			<svg class="search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+			<input
+				type="text"
+				bind:value={searchTerm}
+				on:input={handleInput}
+				placeholder="Explore Wikipedia..."
+				aria-label="Search Wikipedia Titles"
+			/>
+		</div>
 		<div class="search-options">
-			<label>
-				<input type="radio" bind:group={searchType} value="semantic" /> Semantic
+			<label class:selected={searchType === 'semantic'}>
+				<input type="radio" bind:group={searchType} value="semantic" />
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 2L9 9l-7 2.5L9 14l3 7 3-7 7-2.5L15 9z"/><path d="M22 12l-3-1.5L16 12l3 1.5L22 12zM10 22l-1.5-3L7 16l1.5 3L10 22z"/></svg>
+				Semantic
 			</label>
-			<label>
-				<input type="radio" bind:group={searchType} value="fulltext" /> Full-text
+			<label class:selected={searchType === 'fulltext'}>
+				<input type="radio" bind:group={searchType} value="fulltext" />
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"></path><polyline points="14 2 14 8 20 8"></polyline><line x1="16" y1="13" x2="8" y2="13"></line><line x1="16" y1="17" x2="8" y2="17"></line><polyline points="10 9 9 9 8 9"></polyline></svg>
+				Full-text
 			</label>
-			<label>
-				<input type="radio" bind:group={searchType} value="phrase" /> Phrase
+			<label class:selected={searchType === 'phrase'}>
+				<input type="radio" bind:group={searchType} value="phrase" />
+				<svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+				Phrase
 			</label>
 		</div>
 	</div>
@@ -237,12 +252,20 @@
 			{#each results as result (result.id)}
 				<li class="result-item">
 					<a href={result.url} target="_blank" rel="noopener noreferrer">
-						<h2>{result.title}</h2>
-						{#if result.ogImage}
-							<img src={result.ogImage} alt="Preview for {result.title}" class="preview-image" loading="lazy"/>
-						{:else}
-                            <div class="preview-placeholder">No Preview Available</div>
-                        {/if}
+						<div class="image-container">
+							{#if result.ogImage}
+								<img src={result.ogImage} alt="Preview for {result.title}" class="preview-image" loading="lazy"/>
+							{:else}
+								<div class="preview-placeholder">
+									<svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2" ry="2"></rect><line x1="12" y1="12" x2="12" y2="12"></line></svg>
+									<p>No Preview Available</p>
+								</div>
+							{/if}
+						</div>
+						<div class="content">
+							<h2>{result.title}</h2>
+							<p class="url-link">{result.url}</p>
+						</div>
 					</a>
 				</li>
 			{/each}
@@ -251,71 +274,160 @@
 </div>
 
 <style>
-	.container {
-		max-width: 800px;
-		margin: 2rem auto;
-		padding: 1rem;
-		font-family: sans-serif;
+	:root {
+		--font-primary: 'Inter', sans-serif;
+		--color-background: #f4f7f9; /* Lighter gray background */
+		--color-surface: #ffffff;
+		--color-text-primary: #2c3e50; /* Darker, more saturated blue-gray */
+		--color-text-secondary: #7f8c8d; /* Softer gray */
+		--color-accent: #3498db; /* Vibrant blue */
+		--color-accent-hover: #2980b9;
+		--color-border: #e0e6ed;
+		--shadow-sm: 0 2px 4px rgba(0,0,0,0.04);
+		--shadow-md: 0 4px 12px rgba(0,0,0,0.08);
+		--border-radius: 8px;
 	}
 
-	h1 {
+	.page-wrapper {
+		max-width: 1000px;
+		margin: 0 auto;
+		padding: 2rem 1.5rem;
+		background-color: var(--color-background);
+		min-height: 100vh;
+		color: var(--color-text-primary);
+		font-family: var(--font-primary);
+		line-height: 1.6;
+	}
+
+	.header {
 		text-align: center;
-		color: #333;
-		margin-bottom: 1.5rem;
+		margin-bottom: 2.5rem;
 	}
 
-	.search-wrapper {
+	.header h1 {
+		font-size: 3rem;
+		font-weight: 700;
+		color: var(--color-text-primary);
+		margin: 0 0 0.25rem 0;
+	}
+
+	.header .subtitle {
+		font-size: 1.15rem;
+		color: var(--color-text-secondary);
+		margin: 0;
+	}
+
+	.search-container {
+		background-color: var(--color-surface);
+		padding: 2rem;
+		border-radius: var(--border-radius);
+		box-shadow: var(--shadow-md);
+		margin-bottom: 2.5rem;
+	}
+
+	.search-input-wrapper {
 		display: flex;
-		flex-direction: column;
 		align-items: center;
+		background-color: var(--color-background);
+		border: 1px solid var(--color-border);
+		border-radius: var(--border-radius);
+		padding: 0 0.75rem;
 		margin-bottom: 1.5rem;
+		box-shadow: none;
+		transition: border-color 0.2s, box-shadow 0.2s;
+	}
+
+	.search-input-wrapper:focus-within {
+		border-color: var(--color-accent);
+		box-shadow: 0 0 0 3px rgba(52, 152, 219, 0.25);
+	}
+
+	.search-icon {
+		color: var(--color-text-secondary);
+		margin-right: 0.5rem;
+		flex-shrink: 0;
 	}
 
 	input[type="text"] {
-		display: block;
+		flex-grow: 1;
 		width: 100%;
-		padding: 0.8rem;
+		padding: 0.9rem 0.5rem;
 		font-size: 1.1rem;
-		border: 1px solid #ccc; /* Added border */
-		border-radius: 4px; /* Added border-radius for a softer look */
-		outline: none; /* Remove focus outline */
-		box-sizing: border-box; /* Ensure padding and border don't increase width */
+		font-family: var(--font-primary);
+		color: var(--color-text-primary);
+		border: none;
+		outline: none;
+		background-color: transparent;
+		letter-spacing: 0.5px;
 	}
 
 	.search-options {
 		display: flex;
 		justify-content: center;
-		gap: 1rem; /* Adjusted gap for better spacing */
-		margin-bottom: 1.5rem;
-		align-items: center; /* Vertically align items if they wrap */
+		gap: 0.75rem;
 	}
 
 	.search-options label {
+		flex-grow: 1;
+		display: flex;
+		align-items: center;
+		justify-content: center;
+		gap: 0.5rem;
+		padding: 0.75rem 1rem;
+		font-size: 0.9rem;
+		font-weight: 500;
+		color: var(--color-text-secondary);
+		background-color: var(--color-surface);
+		border: 1px solid var(--color-border);
+		border-radius: 6px;
 		cursor: pointer;
-		display: flex; /* Align radio button and text */
-		align-items: center; /* Vertically center radio and text */
-		padding: 0.5rem; /* Add some padding for easier clicking */
-		border-radius: 4px; /* Slightly rounded corners for labels */
-		transition: background-color 0.2s; /* Smooth background transition on hover */
+		transition: all 0.2s ease-in-out;
+		user-select: none;
 	}
 
 	.search-options label:hover {
-		background-color: #ecf0f1; /* Light background on hover for better UX */
+		border-color: var(--color-accent-hover);
+		color: var(--color-accent-hover);
+		background-color: #eaf5fc;
 	}
 
-   .search-options input[type="radio"] {
-    margin-right: 0.5em; /* Space between radio button and text */
-    cursor: pointer;
-  }
+	.search-options label.selected {
+		background-color: var(--color-accent);
+		color: white;
+		border-color: var(--color-accent);
+		box-shadow: 0 3px 10px rgba(52, 152, 219, 0.35);
+	}
+
+	.search-options label.selected svg {
+		stroke: white;
+	}
+
+	.search-options label svg {
+		stroke: var(--color-text-secondary);
+		transition: stroke 0.2s ease-in-out;
+	}
+
+	.search-options label:hover svg {
+		stroke: var(--color-accent-hover);
+	}
+
+	.search-options input[type="radio"] {
+		display: none;
+	}
 
 	.status {
 		text-align: center;
-		margin-top: 2rem;
-		color: #666;
+		margin: 2.5rem 0;
+		font-size: 1.1rem;
+		color: var(--color-text-secondary);
 	}
 
     .status.error {
-        color: #d9534f; /* Red color for errors */
+        color: #e74c3c;
+		background-color: #ffebee;
+		padding: 1rem;
+		border-radius: var(--border-radius);
+		border: 1px solid #e74c3c;
     }
 
 	.results-list {
@@ -323,53 +435,87 @@
 		padding: 0;
 		margin: 0;
 		display: grid;
-		gap: 1rem;
-        grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); 
+		gap: 1.5rem;
+        grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
 	}
 
 	.result-item a {
 		display: block;
-		border: 1px solid #eee;
-		border-radius: 4px;
-		padding: 1rem;
+		background-color: var(--color-surface);
+		border-radius: var(--border-radius);
 		text-decoration: none;
-		color: #333;
-		transition: background-color 0.2s ease;
-        height: 100%; /* Make items fill grid cell height */
+		color: var(--color-text-primary);
+		transition: transform 0.2s ease-in-out, box-shadow 0.2s ease-in-out;
+        height: 100%;
         box-sizing: border-box;
         display: flex;
         flex-direction: column;
+		box-shadow: var(--shadow-sm);
+		overflow: hidden;
 	}
 
 	.result-item a:hover {
-		background-color: #f9f9f9;
+		transform: translateY(-5px);
+		box-shadow: var(--shadow-md);
 	}
 
-	.result-item h2 {
-		font-size: 1rem;
-		margin: 0 0 0.5rem 0;
-        flex-grow: 1; /* Allow title to take up space */
+	.result-item .image-container {
+		width: 100%;
+		height: 180px;
+		background-color: #e9ecef;
+		display: flex;
+		align-items: center;
+		justify-content: center;
 	}
 
 	.preview-image {
-		max-width: 100%;
-        height: 150px; /* Fixed height */
-		display: block;
-		margin-top: auto; /* Pushes image towards bottom if title is short */
-        object-fit: cover; /* Cover the area without distortion */
-        border-radius: 3px;
+		width: 100%;
+        height: 100%;
+        object-fit: cover;
 	}
     
     .preview-placeholder {
-        height: 150px; /* Match image height */
+		width: 100%;
+        height: 100%; 
         display: flex;
+        flex-direction: column; 
         align-items: center;
         justify-content: center;
-        background-color: #f0f0f0;
-        color: #999;
-        border-radius: 3px;
+        color: var(--color-text-secondary);
         font-size: 0.9rem;
-        margin-top: auto;
     }
+
+	.preview-placeholder svg {
+		width: 40px;
+		height: 40px;
+		margin-bottom: 0.5rem;
+		stroke-width: 1.5;
+	}
+
+	.result-item .content {
+		padding: 1rem;
+		flex-grow: 1;
+		display: flex;
+		flex-direction: column;
+	}
+
+	.result-item h2 {
+		font-size: 1.1rem;
+		font-weight: 600;
+		margin: 0 0 0.5rem 0;
+		line-height: 1.4;
+	}
+
+	.result-item .url-link {
+		font-size: 0.85rem;
+		color: var(--color-accent);
+		word-break: break-all;
+		margin-top: auto;
+		text-decoration: none;
+	}
+
+	.result-item .url-link:hover {
+		text-decoration: underline;
+	}
 
 </style>
