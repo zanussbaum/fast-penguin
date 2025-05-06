@@ -110,7 +110,7 @@ export async function POST({ request }) {
 
         // Construct query options based on mode
         let queryOptions = {
-            top_k: top_k_from_request || (mode === 'semantic' ? 10 : 20), // Default if not provided by request
+            top_k: top_k_from_request || (mode === 'semantic' ? 20 : 20), // Semantic defaults to 20, Fulltext defaults to 20
             include_attributes: ['title', 'url']
         };
 

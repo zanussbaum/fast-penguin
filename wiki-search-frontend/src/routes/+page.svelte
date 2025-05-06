@@ -8,6 +8,7 @@
 	let isLoadingTurbopuffer = false;
 	let error = null;
 	let debounceTimer;
+	let searchPerformedForCurrentTerm = false; // New flag
 
 	const EMBEDDING_API_URL = import.meta.env.VITE_EMBEDDING_API_URL;
 
@@ -17,6 +18,7 @@
 			isLoadingEmbedding = false;
 			isLoadingTurbopuffer = false;
 			error = null;
+			searchPerformedForCurrentTerm = false; // Reset if term is empty
 			return;
 		}
 
@@ -59,7 +61,7 @@
 					headers: {
 						'Content-Type': 'application/json'
 					},
-					body: JSON.stringify({ vector: queryVector, mode: 'semantic', top_k: 10 }) // Pass vector
+					body: JSON.stringify({ vector: queryVector, mode: 'semantic', top_k: 20 }) // Pass vector
 				});
 				if (!searchResponse.ok) {
 					let errorMsg = `Semantic search failed! status: ${searchResponse.status}`;
@@ -114,6 +116,7 @@
 		} finally {
 			isLoadingEmbedding = false;
 			isLoadingTurbopuffer = false;
+			searchPerformedForCurrentTerm = true; // Set flag after search completes
 		}
 	}
 
@@ -132,12 +135,26 @@
 		debounceTimer = setTimeout(() => {
 			fetchResults();
 		}, 500); // Wait 500ms after last keystroke
+		if (!searchTerm.trim()) {
+			results = [];
+			error = null;
+			isLoadingEmbedding = false;
+			isLoadingTurbopuffer = false;
+			searchPerformedForCurrentTerm = false; // Reset if term is cleared
+			return;
+		}
+		// When input changes, a new search hasn't been performed for this exact term yet
+		// The debounced function will set it to true when it actually runs.
+		// However, we want to clear previous 'no results' if user continues typing from a 'no results' state.
+		// If results are empty AND searchWasPerformed, implies previous search yielded no results.
+		// If user types more, we should clear the 'no results' message until new search completes.
+		if (results.length === 0 && searchPerformedForCurrentTerm) {
+       // This implies the last search for a *previous version* of searchTerm yielded no results.
+       // As user is typing more, we can pre-emptively set searchPerformedForCurrentTerm to false
+       // to hide "no results" until the new debounced search completes.
+       searchPerformedForCurrentTerm = false;
+    }
 	}
-
-    // Trigger initial search if needed (e.g., from query param - future enhancement)
-	// onMount(() => {
-	//     if (searchTerm) fetchResults(); 
-	// });
 
 </script>
 
@@ -172,7 +189,11 @@
 		<p class="status">Searching similar articles...</p>
 	{:else if error}
 		<p class="status error">Error: {error}</p>
-	{:else if results.length > 0}
+	{:else if searchTerm && !isLoadingEmbedding && !isLoadingTurbopuffer && searchPerformedForCurrentTerm && results.length === 0}
+        <p class="status">No results found for "{searchTerm}".</p>
+	{/if}
+
+	{#if results.length > 0}
 		<ul class="results-list">
 			{#each results as result (result.id)}
 				<li class="result-item">
@@ -187,9 +208,7 @@
 				</li>
 			{/each}
 		</ul>
-    {:else if searchTerm.trim() && !isLoadingEmbedding && !isLoadingTurbopuffer}
-        <p class="status">No results found for "{searchTerm}".</p>
-	{/if}
+    {/if}
 </div>
 
 <style>
