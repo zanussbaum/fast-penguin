@@ -65,20 +65,31 @@ async function fetchOgImage(url) {
 
 /** @type {import('./$types').RequestHandler} */
 export async function POST({ request }) {
-    let query;
-    let mode = 'fulltext'; // Default to full-text search
+    let query, vector, top_k_from_request;
+    let mode;
+
     try {
         const requestData = await request.json();
-        query = requestData.query;
-        if (requestData.mode === 'phrase') { // Check for 'phrase' mode
-            mode = 'phrase';
+        mode = requestData.mode || 'fulltext'; // Default to fulltext if not provided
+
+        if (mode === 'semantic') {
+            vector = requestData.vector;
+            top_k_from_request = requestData.top_k;
+            if (!Array.isArray(vector) || !vector.every(n => typeof n === 'number')) {
+                return json({ error: 'Semantic search requires a valid "vector" (array of numbers).' }, { status: 400 });
+            }
+        } else if (mode === 'fulltext') {
+            query = requestData.query;
+            top_k_from_request = requestData.top_k; // Frontend might send this in future
+            if (typeof query !== 'string' || query.trim() === '') {
+                return json({ error: 'Fulltext search requires a non-empty "query" string.' }, { status: 400 });
+            }
+        } else {
+            return json({ error: `Unsupported search mode: ${mode}. Supported modes are "fulltext" and "semantic".` }, { status: 400 });
         }
     } catch (e) {
+        console.error('Error parsing request body:', e);
         return json({ error: 'Invalid JSON body' }, { status: 400 });
-    }
-
-    if (typeof query !== 'string' || query.trim() === '') {
-        return json({ error: 'Query parameter must be a non-empty string' }, { status: 400 });
     }
 
     if (!TPUF_API_KEY) {
@@ -87,44 +98,41 @@ export async function POST({ request }) {
     }
 
     // --- TEMPORARY DEBUG LOG: Verify API Key --- 
-    console.log(`[DEBUG] API Key loaded by server: ${TPUF_API_KEY ? TPUF_API_KEY.substring(0, 8) + '...' : 'MISSING!'}`);
+    // console.log(`[DEBUG] API Key loaded by server: ${TPUF_API_KEY ? TPUF_API_KEY.substring(0, 8) + '...' : 'MISSING!'}`);
     // --- REMOVE THIS LOG AFTER TESTING --- 
 
     // Instantiate the Turbopuffer client
     const tpuf = new Turbopuffer({ apiKey: TPUF_API_KEY });
 
     try {
-        console.log(`Performing Turbopuffer search for query: "${query}" (mode: ${mode}) using client library`);
-        
         // Get the specific namespace object from the client
         const ns = tpuf.namespace(NAMESPACE);
 
         // Construct query options based on mode
         let queryOptions = {
-            top_k: 20,
+            top_k: top_k_from_request || (mode === 'semantic' ? 10 : 20), // Default if not provided by request
             include_attributes: ['title', 'url']
         };
 
-        if (mode === 'phrase') {
-            // Use ContainsAllTokens filter for phrase mode as per docs
-            queryOptions.filters = ['title', 'ContainsAllTokens', query]; 
-            // Remove rank_by when using filters
-            delete queryOptions.rank_by; 
-            console.log('[DEBUG] Using ContainsAllTokens filter:', JSON.stringify(queryOptions.filters));
-        } else {
-            // Default to full-text search (BM25)
-            queryOptions.rank_by = ['title', 'BM25', query];
-            // Ensure filters is not set for full-text search if previously set
+        if (mode === 'semantic') {
+            queryOptions.vector = vector;
+            queryOptions.distance_metric = 'cosine_distance';
+            // Ensure no rank_by or filters for pure vector search
+            delete queryOptions.rank_by;
             delete queryOptions.filters;
-            console.log('[DEBUG] Using BM25 rank_by:', JSON.stringify(queryOptions.rank_by));
+            console.log(`[DEBUG] Performing Semantic Search with ${queryOptions.vector.length}-dim vector. Top K: ${queryOptions.top_k}, Namespace: ${NAMESPACE}`);
+        } else { // mode === 'fulltext'
+            queryOptions.rank_by = ['title', 'BM25', query];
+            // Ensure filters is not set for full-text BM25 search
+            delete queryOptions.filters;
+            console.log(`[DEBUG] Performing Fulltext Search for query: "${query}". Top K: ${queryOptions.top_k}, Mode: ${mode}, Namespace: ${NAMESPACE}`);
         }
 
         // Use the namespace object's query method with dynamic options
         const queryResult = await ns.query(queryOptions);
 
         // --- TEMPORARY DEBUG LOG: Log full query result --- 
-        console.log('[DEBUG] Full queryResult:', JSON.stringify(queryResult, null, 2));
-        // --- REMOVE THIS LOG AFTER TESTING --- 
+        // console.log('[DEBUG] Full queryResult:', JSON.stringify(queryResult, null, 2));
 
         // Check for errors returned by the client library itself
         // (Note: The client might throw errors directly for network/auth issues)
