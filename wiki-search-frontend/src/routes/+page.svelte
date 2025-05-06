@@ -3,6 +3,7 @@
 
 	let searchTerm = '';
 	let searchType = 'semantic'; // 'semantic', 'fulltext', or 'phrase'
+	let _previousSearchType = searchType; // For reactive statement
 	let results = [];
 	let isLoadingEmbedding = false;
 	let isLoadingTurbopuffer = false;
@@ -179,6 +180,17 @@
     }
 	}
 
+	// Reactive statement to re-fetch results when searchType changes
+	$: {
+	  if (searchType !== _previousSearchType) {
+	    _previousSearchType = searchType; // Update for the next change
+	    if (searchTerm.trim()) {
+	      // console.log('Search type changed to:', searchType, '- re-fetching for:', searchTerm);
+	      fetchResults();
+	    }
+	  }
+	}
+
 </script>
 
 <svelte:head>
@@ -264,9 +276,10 @@
 		width: 100%;
 		padding: 0.8rem;
 		font-size: 1.1rem;
-		border: none; /* Remove individual border */
-		border-radius: 0; 
+		border: 1px solid #ccc; /* Added border */
+		border-radius: 4px; /* Added border-radius for a softer look */
 		outline: none; /* Remove focus outline */
+		box-sizing: border-box; /* Ensure padding and border don't increase width */
 	}
 
 	.search-options {
